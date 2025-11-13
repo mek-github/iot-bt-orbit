@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "ORBIT",
+    "slug": "iot-bt-orbit",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.orbit.iotbtorbit",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "ORBIT uses Bluetooth to discover nearby events and connections.",
+        "NSBluetoothPeripheralUsageDescription": "ORBIT uses Bluetooth to connect with nearby devices at events."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.orbit.iotbtorbit",
+      "permissions": [
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "BLUETOOTH_SCAN",
+        "BLUETOOTH_CONNECT"
+      ]
+    }
+  }
+}
