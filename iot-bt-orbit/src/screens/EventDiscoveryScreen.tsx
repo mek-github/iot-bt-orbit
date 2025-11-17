@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,12 @@ import {
   Image,
   TouchableOpacity,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { Icon } from '../components/Icon';
 import { BottomNav } from '../components/BottomNav';
+import { subscribeToEvents } from '../services/firebaseService';
+import type { Event } from '../services/firebaseService';
 
 const { width } = Dimensions.get('window');
 
@@ -26,6 +29,57 @@ export const EventDiscoveryScreen: React.FC<EventDiscoveryScreenProps> = ({
   onNotYourEvent,
   navigation,
 }) => {
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentEventIndex, setCurrentEventIndex] = useState(0);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToEvents((loadedEvents) => {
+      setEvents(loadedEvents);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const currentEvent = events[currentEventIndex];
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={[styles.content, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color="#4DC4C4" />
+          <Text style={styles.notYourEventText}>Loading events...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (events.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <Text style={styles.logo}>ORBIT</Text>
+          </View>
+          <View style={[styles.titleSection, { flex: 1, justifyContent: 'center', alignItems: 'center' }]}>
+            <Text style={styles.title}>No events found near you</Text>
+            <TouchableOpacity 
+              style={[styles.joinButton, { marginTop: 20 }]}
+              onPress={onNotYourEvent}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.joinButtonText}>Browse All Events</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        <BottomNav 
+          theme="dark" 
+          showCenterIcon={false}
+        />
+      </SafeAreaView>
+    );
+  }
   return (
     <SafeAreaView style={styles.container}>
       {/* Status Dot */}
@@ -59,27 +113,33 @@ export const EventDiscoveryScreen: React.FC<EventDiscoveryScreenProps> = ({
 
           {/* Event Details */}
           <View style={styles.detailsContainer}>
-            <Text style={styles.eventTitle}>Austin Small Business Expo</Text>
-            <Text style={styles.eventDate}>12/15/25</Text>
+            <Text style={styles.eventTitle}>{currentEvent.title}</Text>
+            <Text style={styles.eventDate}>{currentEvent.date}</Text>
 
             {/* Stats Row */}
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
-                <Text style={styles.statIcon}>👥</Text>
-                <Text style={styles.statText}>120</Text>
+                <Text style={styles.statIcon}>�</Text>
+                <Text style={styles.statText}>{currentEvent.location}</Text>
               </View>
               <View style={styles.statItem}>
-                <Text style={styles.statIcon}>🌐</Text>
-                <Text style={styles.statText}>34</Text>
+                <Text style={styles.statIcon}>👥</Text>
+                <Text style={styles.statText}>{currentEvent.checkedInCount || 0}</Text>
               </View>
 
               {/* Join Button */}
               <TouchableOpacity
                 style={styles.joinButton}
-                onPress={onJoinPress}
+                onPress={() => {
+                  if (onEventPress) {
+                    onEventPress();
+                  } else {
+                    navigation?.navigate('EventDetail', { event: currentEvent });
+                  }
+                }}
                 activeOpacity={0.8}
               >
-                <Text style={styles.joinButtonText}>Join +</Text>
+                <Text style={styles.joinButtonText}>View</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -88,10 +148,20 @@ export const EventDiscoveryScreen: React.FC<EventDiscoveryScreenProps> = ({
         {/* Not Your Event Link */}
         <TouchableOpacity 
           style={styles.notYourEventContainer}
-          onPress={onNotYourEvent}
+          onPress={() => {
+            if (currentEventIndex < events.length - 1) {
+              setCurrentEventIndex(currentEventIndex + 1);
+            } else if (onNotYourEvent) {
+              onNotYourEvent();
+            } else {
+              navigation?.navigate('Search');
+            }
+          }}
           activeOpacity={0.7}
         >
-          <Text style={styles.notYourEventText}>Not your event?</Text>
+          <Text style={styles.notYourEventText}>
+            {currentEventIndex < events.length - 1 ? 'Show next event' : 'Browse all events'}
+          </Text>
         </TouchableOpacity>
       </View>
 

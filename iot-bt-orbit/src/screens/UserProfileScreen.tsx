@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,12 +7,15 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Icon } from '../components/Icon';
 import { Colors, Typography, Spacing, BorderRadius } from '../theme';
 import { colors } from '../constants/colors';
 import { BottomNav } from '../components/BottomNav';
+import { logoutUser, getCurrentUser, getUserProfile, getUserAttendedEvents } from '../services/firebaseService';
+import type { UserProfile, Event } from '../services/firebaseService';
 
 const { width } = Dimensions.get('window');
 
@@ -87,6 +90,60 @@ export const UserProfileScreen: React.FC<UserProfileScreenProps> = ({
   onEventPress,
   navigation,
 }) => {
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [attendedEvents, setAttendedEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadUserProfile();
+  }, []);
+
+  const loadUserProfile = async () => {
+    try {
+      const user = getCurrentUser();
+      if (user) {
+        const profile = await getUserProfile(user.uid);
+        if (profile) {
+          setUserProfile(profile);
+          
+          // Load attended events
+          const events = await getUserAttendedEvents(user.uid);
+          setAttendedEvents(events);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load user profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logoutUser();
+              navigation?.replace('RoleSelection');
+            } catch (error) {
+              console.error('Logout failed', error);
+              Alert.alert('Error', 'Failed to logout. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <LinearGradient
       colors={[colors.gradientTop, colors.gradientBottom]}
@@ -117,43 +174,87 @@ export const UserProfileScreen: React.FC<UserProfileScreenProps> = ({
 
             {/* Profile Details */}
             <View style={styles.profileDetails}>
-              <Text style={styles.profileName}>Lotta Schwedhelm</Text>
+              <Text style={styles.profileName}>{userProfile?.name || 'Loading...'}</Text>
               <Text style={styles.profileTitle}>
-                Computer Science @ The University of Texas at Austin
+                {userProfile?.email || ''}
               </Text>
-              <Text style={styles.profileLocation}>
-                Austin, Texas, United States
-              </Text>
+              {userProfile?.role === 'recruiter' && (
+                <>
+                  {userProfile.company && (
+                    <Text style={styles.profileLocation}>
+                      🏢 {userProfile.company}
+                    </Text>
+                  )}
+                  {userProfile.recruitingFor && (
+                    <Text style={styles.profileLocation}>
+                      💼 Recruiting for: {userProfile.recruitingFor}
+                    </Text>
+                  )}
+                  {userProfile.lookingFor && (
+                    <Text style={styles.profileLocation}>
+                      🔍 Looking for: {userProfile.lookingFor}
+                    </Text>
+                  )}
+                </>
+              )}
               <View style={styles.statsBadge}>
-                <Text style={styles.statsBadgeText}>10 Orbits Attended</Text>
+                <Text style={styles.statsBadgeText}>
+                  {attendedEvents.length} Orbit{attendedEvents.length !== 1 ? 's' : ''} Attended
+                </Text>
               </View>
+              
+              {/* Logout Button */}
+              <TouchableOpacity 
+                style={styles.logoutButton}
+                onPress={handleLogout}
+                activeOpacity={0.8}
+              >
+                <Icon name="log-out-outline" size={18} color={Colors.dark.primaryText} />
+                <Text style={styles.logoutButtonText}>Logout</Text>
+              </TouchableOpacity>
             </View>
           </LinearGradient>
         </View>
 
         {/* Past Orbits Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Past Orbits</Text>
+          <Text style={styles.sectionTitle}>Past Orbits ({attendedEvents.length})</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
-            <EventCard
-              title="Austin Small Business Expo"
-              date="Dec 15"
-              distance="0.9 mi"
-            />
-            <EventCard isPlaceholder />
-            <EventCard isPlaceholder />
-            <EventCard isAddButton />
+            {attendedEvents.length > 0 ? (
+              attendedEvents.map((event) => (
+                <TouchableOpacity
+                  key={event.id}
+                  onPress={() => navigation?.navigate('EventDetail', { event })}
+                  activeOpacity={0.8}
+                >
+                  <EventCard
+                    title={event.title}
+                    date={event.date}
+                    distance={event.location}
+                  />
+                </TouchableOpacity>
+              ))
+            ) : (
+              <>
+                <EventCard isPlaceholder />
+                <View style={{paddingHorizontal: 8}}>
+                  <Text style={styles.emptyText}>Check in to events to see them here!</Text>
+                </View>
+              </>
+            )}
           </ScrollView>
         </View>
 
-        {/* Saved Orbits Section */}
+        {/* Role Badge */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Saved Orbits</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
-            <EventCard isPlaceholder />
-            <EventCard isPlaceholder />
-            <EventCard isAddButton />
-          </ScrollView>
+          <View style={styles.roleBadgeContainer}>
+            <Text style={styles.roleBadgeLabel}>Account Type:</Text>
+            <View style={styles.roleBadgePill}>
+              <Text style={styles.roleBadgeText}>
+                {userProfile?.role === 'host' ? '🎯 Host' : userProfile?.role === 'recruiter' ? '💼 Recruiter' : '👤 Attendee'}
+              </Text>
+            </View>
+          </View>
         </View>
       </ScrollView>
 
@@ -250,6 +351,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.dark.primaryText,
   },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: BorderRadius.medium,
+    marginTop: Spacing.lg,
+  },
+  logoutButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.dark.primaryText,
+  },
   section: {
     marginBottom: Spacing.xxxl,
     paddingLeft: Spacing.screenPadding,
@@ -332,5 +449,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: Colors.dark.secondaryText,
+    fontStyle: 'italic',
+    marginTop: 60,
+  },
+  roleBadgeContainer: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  roleBadgeLabel: {
+    fontSize: 14,
+    color: Colors.dark.secondaryText,
+    marginBottom: 8,
+  },
+  roleBadgePill: {
+    backgroundColor: 'rgba(77, 196, 196, 0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(77, 196, 196, 0.5)',
+  },
+  roleBadgeText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.cyan,
   },
 });

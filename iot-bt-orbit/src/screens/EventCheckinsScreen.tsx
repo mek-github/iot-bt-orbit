@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { colors } from '../constants/colors';
+import { subscribeToEventCheckins } from '../services/firebaseService';
+import type { CheckedInUser } from '../utils/eventStorage';
 
 interface Attendee {
   id: string;
@@ -15,6 +17,10 @@ interface Attendee {
   email: string;
   checkedInAt: string;
   status: 'checked-in' | 'registered';
+  role?: 'attendee' | 'host' | 'recruiter';
+  company?: string;
+  recruitingFor?: string;
+  lookingFor?: string;
 }
 
 interface EventCheckinsScreenProps {
@@ -36,36 +42,19 @@ export const EventCheckinsScreen: React.FC<EventCheckinsScreenProps> = ({
   route,
 }) => {
   const event = route?.params?.event;
-  const [attendees] = useState<Attendee[]>([
-    {
-      id: '1',
-      name: 'Farah Kamal',
-      email: 'FarahKamal@gmail.com',
-      checkedInAt: '2:30 PM',
-      status: 'checked-in',
-    },
-    {
-      id: '2',
-      name: 'John Smith',
-      email: 'john.smith@example.com',
-      checkedInAt: '2:15 PM',
-      status: 'checked-in',
-    },
-    {
-      id: '3',
-      name: 'Sarah Johnson',
-      email: 'sarah.j@example.com',
-      checkedInAt: '1:45 PM',
-      status: 'checked-in',
-    },
-    {
-      id: '4',
-      name: 'Michael Chen',
-      email: 'mchen@example.com',
-      checkedInAt: '1:30 PM',
-      status: 'checked-in',
-    },
-  ]);
+  const eventId = route?.params?.eventId;
+  const [attendees, setAttendees] = useState<CheckedInUser[]>([]);
+
+  useEffect(() => {
+    if (!eventId) return;
+
+    // Subscribe to real-time check-in updates
+    const unsubscribe = subscribeToEventCheckins(eventId, (users) => {
+      setAttendees(users);
+    });
+
+    return () => unsubscribe();
+  }, [eventId]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -102,9 +91,9 @@ export const EventCheckinsScreen: React.FC<EventCheckinsScreenProps> = ({
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statNumber}>
-            {attendees.filter((a) => a.status === 'checked-in').length}
+            {attendees.filter((a) => a.role === 'recruiter').length}
           </Text>
-          <Text style={styles.statLabel}>Currently Here</Text>
+          <Text style={styles.statLabel}>Recruiters</Text>
         </View>
       </View>
 
@@ -116,7 +105,7 @@ export const EventCheckinsScreen: React.FC<EventCheckinsScreenProps> = ({
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {attendees.map((attendee, index) => (
-          <View key={attendee.id} style={styles.attendeeCard}>
+          <View key={attendee.userId} style={styles.attendeeCard}>
             <View style={styles.attendeeAvatar}>
               <Text style={styles.avatarText}>
                 {attendee.name.split(' ').map((n) => n[0]).join('')}
@@ -124,14 +113,24 @@ export const EventCheckinsScreen: React.FC<EventCheckinsScreenProps> = ({
             </View>
             <View style={styles.attendeeInfo}>
               <Text style={styles.attendeeName}>{attendee.name}</Text>
-              <Text style={styles.attendeeEmail}>{attendee.email}</Text>
+              {attendee.role === 'recruiter' && (
+                <View style={styles.recruiterTag}>
+                  <Text style={styles.recruiterTagIcon}>💼</Text>
+                  <Text style={styles.recruiterTagText}>RECRUITER</Text>
+                </View>
+              )}
+              {attendee.role === 'recruiter' && attendee.company && (
+                <Text style={styles.attendeeCompany}>
+                  {attendee.company}
+                  {attendee.recruitingFor && ` • ${attendee.recruitingFor}`}
+                </Text>
+              )}
             </View>
             <View style={styles.checkInInfo}>
               <View style={styles.statusBadge}>
                 <View style={styles.statusDot} />
                 <Text style={styles.statusText}>Checked In</Text>
               </View>
-              <Text style={styles.checkInTime}>{attendee.checkedInAt}</Text>
             </View>
           </View>
         ))}
@@ -269,9 +268,35 @@ const styles = StyleSheet.create({
     color: colors.white,
     marginBottom: 4,
   },
+  recruiterTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.5)',
+    gap: 4,
+    marginBottom: 4,
+  },
+  recruiterTagIcon: {
+    fontSize: 10,
+  },
+  recruiterTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFD700',
+  },
   attendeeEmail: {
     fontSize: 13,
     color: colors.textGray,
+  },
+  attendeeCompany: {
+    fontSize: 13,
+    color: colors.textGray,
+    marginTop: 2,
   },
   checkInInfo: {
     alignItems: 'flex-end',

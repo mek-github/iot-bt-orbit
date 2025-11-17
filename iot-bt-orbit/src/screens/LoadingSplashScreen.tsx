@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Typography, Spacing, BorderRadius } from '../theme';
 import { BottomNav } from '../components/BottomNav';
+import { getCurrentUser, getUserProfile } from '../services/firebaseService';
 
 const { width } = Dimensions.get('window');
 
@@ -20,14 +21,27 @@ interface LoadingSplashScreenProps {
 }
 
 export const LoadingSplashScreen: React.FC<LoadingSplashScreenProps> = ({
-  userName = 'Farah',
+  userName: userNameProp,
   onLoadComplete,
   navigation,
 }) => {
+  const [userName, setUserName] = useState(userNameProp || 'User');
   const shimmerAnim = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    // Load user name from Firebase
+    const loadUserName = async () => {
+      const user = getCurrentUser();
+      if (user) {
+        const profile = await getUserProfile(user.uid);
+        if (profile) {
+          setUserName(profile.name);
+        }
+      }
+    };
+    loadUserName();
+
     // Shimmer animation for skeleton loading effect
     Animated.loop(
       Animated.sequence([

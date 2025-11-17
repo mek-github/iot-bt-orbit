@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import { Icon } from '../components/Icon';
 import { Colors, Typography, Spacing, BorderRadius } from '../theme';
 import { colors } from '../constants/colors';
 import { BottomNav } from '../components/BottomNav';
+import { Event } from '../utils/eventStorage';
+import { subscribeToEvents } from '../services/firebaseService';
 
 const { width } = Dimensions.get('window');
 
@@ -43,7 +45,10 @@ const EventListItem: React.FC<EventListItemProps> = ({
         <Icon name="business-outline" size={36} color={Colors.dark.secondaryText} />
         <TouchableOpacity
           style={styles.favoriteButton}
-          onPress={onFavoritePress}
+          onPress={(e) => {
+            e.stopPropagation();
+            onFavoritePress?.();
+          }}
           activeOpacity={0.7}
         >
           <Icon
@@ -79,56 +84,59 @@ const EventListItem: React.FC<EventListItemProps> = ({
 };
 
 interface SearchScreenProps {
-  onEventPress?: () => void;
+  onEventPress?: (event: Event) => void;
   navigation?: any;
 }
 
 export const SearchScreen: React.FC<SearchScreenProps> = ({ onEventPress, navigation }) => {
-  const [searchQuery, setSearchQuery] = useState('Business');
-  const [favorites, setFavorites] = useState<Set<number>>(new Set([0]));
+  const [searchQuery, setSearchQuery] = useState('');
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [events, setEvents] = useState<Event[]>([]);
 
-  const toggleFavorite = (index: number) => {
+  useEffect(() => {
+    // Subscribe to real-time event updates
+    const unsubscribe = subscribeToEvents((allEvents) => {
+      console.log('SearchScreen: Real-time events update:', allEvents.length);
+      setEvents(allEvents);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Reload events when screen comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation?.addListener('focus', () => {
+      // Events auto-update via real-time listener
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
+  const loadAllEvents = async () => {
+    // No longer needed - real-time listener handles this
+  };
+
+  const toggleFavorite = (eventId: string) => {
     const newFavorites = new Set(favorites);
-    if (newFavorites.has(index)) {
-      newFavorites.delete(index);
+    if (newFavorites.has(eventId)) {
+      newFavorites.delete(eventId);
     } else {
-      newFavorites.add(index);
+      newFavorites.add(eventId);
     }
     setFavorites(newFavorites);
   };
 
-  const events = [
-    {
-      title: 'Austin Small Business Expo',
-      date: 'Dec 15, 2025',
-      location: '0.9 mi away',
-      attendees: 120,
-    },
-    {
-      title: 'Tech Networking Mixer',
-      date: 'Dec 18, 2025',
-      location: '1.2 mi away',
-      attendees: 85,
-    },
-    {
-      title: 'Startup Founders Meetup',
-      date: 'Dec 20, 2025',
-      location: '2.1 mi away',
-      attendees: 64,
-    },
-    {
-      title: 'Business Development Summit',
-      date: 'Dec 22, 2025',
-      location: '3.5 mi away',
-      attendees: 200,
-    },
-    {
-      title: 'Entrepreneur Coffee Chat',
-      date: 'Dec 25, 2025',
-      location: '1.8 mi away',
-      attendees: 42,
-    },
-  ];
+  // Filter events based on search query
+  const filteredEvents = searchQuery.trim() === '' 
+    ? events 
+    : events.filter(event => {
+        const query = searchQuery.toLowerCase();
+        return (
+          event.title.toLowerCase().includes(query) ||
+          event.date.toLowerCase().includes(query) ||
+          event.location.toLowerCase().includes(query)
+        );
+      });
 
   return (
     <LinearGradient
@@ -165,18 +173,25 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({ onEventPress, naviga
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
       >
-        {events.map((event, index) => (
+        {filteredEvents.map((event, index) => (
           <EventListItem
-            key={index}
+            key={event.id}
             title={event.title}
             date={event.date}
             location={event.location}
-            attendees={event.attendees}
-            isFavorite={favorites.has(index)}
-            onPress={onEventPress}
-            onFavoritePress={() => toggleFavorite(index)}
+            attendees={event.checkedInCount ?? 0}
+            isFavorite={favorites.has(event.id)}
+            onPress={() => onEventPress?.(event)}
+            onFavoritePress={() => toggleFavorite(event.id)}
           />
         ))}
+        {filteredEvents.length === 0 && (
+          <View style={styles.noResults}>
+            <Icon name="search-outline" size={64} color={Colors.dark.secondaryText} />
+            <Text style={styles.noResultsText}>No events found</Text>
+            <Text style={styles.noResultsSubtext}>Try a different search term</Text>
+          </View>
+        )}
       </ScrollView>
 
       {/* Bottom Navigation */}
@@ -292,5 +307,22 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 13,
     color: Colors.dark.secondaryText,
+  },
+  noResults: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  noResultsText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.dark.primaryText,
+    marginTop: 16,
+  },
+  noResultsSubtext: {
+    fontSize: 14,
+    color: Colors.dark.secondaryText,
+    marginTop: 8,
   },
 });

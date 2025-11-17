@@ -10,17 +10,10 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../constants/colors';
+import { Event } from '../utils/eventStorage';
+import { logoutUser, subscribeToEvents, getCurrentUser, getUserProfile, syncEventCheckedInCount } from '../services/firebaseService';
 
 const { width } = Dimensions.get('window');
-
-interface Event {
-  id: string;
-  title: string;
-  date: string;
-  location: string;
-  checkedIn: number;
-  totalCapacity: number;
-}
 
 interface HostDashboardScreenProps {
   navigation?: any;
@@ -28,33 +21,47 @@ interface HostDashboardScreenProps {
 
 export const HostDashboardScreen: React.FC<HostDashboardScreenProps> = ({ navigation }) => {
   const [hostName, setHostName] = useState('Host');
-  const [events, setEvents] = useState<Event[]>([
-    {
-      id: 'event-1',
-      title: 'Austin Small Business Expo',
-      date: 'December 15, 2025',
-      location: 'South Congress, Austin, TX',
-      checkedIn: 34,
-      totalCapacity: 500,
-    },
-    {
-      id: 'event-2',
-      title: 'Tech Startup Networking',
-      date: 'December 20, 2025',
-      location: 'Downtown Austin',
-      checkedIn: 12,
-      totalCapacity: 200,
-    },
-  ]);
+  const [events, setEvents] = useState<Event[]>([]);
 
   useEffect(() => {
     loadUserData();
+    
+    // Subscribe to real-time event updates
+    const unsubscribe = subscribeToEvents((allEvents) => {
+      console.log('HostDashboard: Real-time events update:', allEvents.length);
+      
+      // Sync checked-in counts for all events to fix any discrepancies
+      allEvents.forEach(event => {
+        syncEventCheckedInCount(event.id).catch(err => 
+          console.log('Could not sync count for event', event.id, err)
+        );
+      });
+      
+      setEvents(allEvents);
+    });
+
+    return () => unsubscribe();
   }, []);
+
+  // Reload events when screen comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation?.addListener('focus', () => {
+      // Events auto-update via real-time listener
+      loadUserData();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
 
   const loadUserData = async () => {
     try {
-      const name = await AsyncStorage.getItem('userName');
-      if (name) setHostName(name);
+      const user = getCurrentUser();
+      if (user) {
+        const profile = await getUserProfile(user.uid);
+        if (profile) {
+          setHostName(profile.name);
+        }
+      }
     } catch (error) {
       console.error('Failed to load user data', error);
     }
@@ -62,7 +69,7 @@ export const HostDashboardScreen: React.FC<HostDashboardScreenProps> = ({ naviga
 
   const handleLogout = async () => {
     try {
-      await AsyncStorage.clear();
+      await logoutUser();
       navigation?.replace('RoleSelection');
     } catch (error) {
       console.error('Logout failed', error);
@@ -79,6 +86,18 @@ export const HostDashboardScreen: React.FC<HostDashboardScreenProps> = ({ naviga
         </View>
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Create Event Button */}
+      <View style={styles.createEventSection}>
+        <TouchableOpacity 
+          style={styles.createEventButton}
+          onPress={() => navigation?.navigate('CreateEvent')}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.createEventIcon}>+</Text>
+          <Text style={styles.createEventText}>Create New Event</Text>
         </TouchableOpacity>
       </View>
 
@@ -113,12 +132,12 @@ export const HostDashboardScreen: React.FC<HostDashboardScreenProps> = ({ naviga
 
             <View style={styles.statsRow}>
               <View style={styles.statBox}>
-                <Text style={styles.statNumber}>{event.checkedIn}</Text>
+                <Text style={styles.statNumber}>{event.checkedInCount ?? 0}</Text>
                 <Text style={styles.statLabel}>Checked In</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statBox}>
-                <Text style={styles.statNumber}>{event.totalCapacity}</Text>
+                <Text style={styles.statNumber}>{event.capacity || 'N/A'}</Text>
                 <Text style={styles.statLabel}>Capacity</Text>
               </View>
             </View>
@@ -166,6 +185,30 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 14,
     fontWeight: '600',
+  },
+  createEventSection: {
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+  },
+  createEventButton: {
+    backgroundColor: colors.cyan,
+    borderRadius: 16,
+    paddingVertical: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  createEventIcon: {
+    fontSize: 28,
+    fontWeight: '300',
+    color: colors.white,
+    lineHeight: 28,
+  },
+  createEventText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.white,
   },
   scrollView: {
     flex: 1,

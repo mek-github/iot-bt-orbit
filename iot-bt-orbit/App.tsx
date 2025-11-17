@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
+import { getCurrentUser, getUserProfile } from './src/services/firebaseService';
 
 // Screens
 import { LoadingSplashScreen } from './src/screens/LoadingSplashScreen';
@@ -17,19 +18,23 @@ import { RoleSelectionScreen } from './src/screens/RoleSelectionScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { HostDashboardScreen } from './src/screens/HostDashboardScreen';
 import { EventCheckinsScreen } from './src/screens/EventCheckinsScreen';
+import { CreateEventScreen } from './src/screens/CreateEventScreen';
+import { RecruiterDashboardScreen } from './src/screens/RecruiterDashboardScreen';
 
 export type RootStackParamList = {
   RoleSelection: undefined;
-  Login: { role: 'attendee' | 'host' };
+  Login: { role: 'attendee' | 'host' | 'recruiter' };
   LoadingSplash: undefined;
   ProgressiveLoading: { stage: 1 | 2 | 3 | 4 };
   OrbitVisualization: undefined;
   EventDiscovery: undefined;
-  EventDetail: { eventId?: string };
+  EventDetail: { event?: any };
   UserProfile: undefined;
   Search: undefined;
   HostDashboard: undefined;
+  RecruiterDashboard: undefined;
   EventCheckins: { eventId: string; event: any };
+  CreateEvent: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -87,7 +92,6 @@ export default function App() {
               {(props) => (
                 <LoadingSplashScreen
                   {...props}
-                  userName="Farah"
                   onLoadComplete={() => props.navigation.navigate('OrbitVisualization')}
                 />
               )}
@@ -100,7 +104,6 @@ export default function App() {
                   <ProgressiveLoadingScreen
                     {...props}
                     stage={stage}
-                    userName="Farah"
                     onLoadComplete={() => {
                       if (stage < 4) {
                         props.navigation.navigate('ProgressiveLoading', {
@@ -119,7 +122,6 @@ export default function App() {
               {(props) => (
                 <OrbitVisualizationScreen
                   {...props}
-                  userName="Farah"
                   onComplete={() => props.navigation.navigate('EventDiscovery')}
                 />
               )}
@@ -129,8 +131,12 @@ export default function App() {
               {(props) => (
                 <EventDiscoveryScreen
                   {...props}
-                  onEventPress={() => props.navigation.navigate('EventDetail')}
-                  onJoinPress={() => props.navigation.navigate('EventDetail')}
+                  onEventPress={() => {
+                    // EventDiscoveryScreen will handle navigation internally with the event data
+                  }}
+                  onJoinPress={() => {
+                    // EventDiscoveryScreen will handle navigation internally with the event data
+                  }}
                   onNotYourEvent={() => props.navigation.navigate('Search')}
                 />
               )}
@@ -158,14 +164,18 @@ export default function App() {
               {(props) => (
                 <SearchScreen
                   {...props}
-                  onEventPress={() => props.navigation.navigate('EventDetail')}
+                  onEventPress={(event) => props.navigation.navigate('EventDetail', { event })}
                 />
               )}
             </Stack.Screen>
 
             {/* Host Flow */}
             <Stack.Screen name="HostDashboard" component={HostDashboardScreen} />
+            <Stack.Screen name="CreateEvent" component={CreateEventScreen} />
             <Stack.Screen name="EventCheckins" component={EventCheckinsScreen} />
+
+            {/* Recruiter Flow */}
+            <Stack.Screen name="RecruiterDashboard" component={RecruiterDashboardScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </View>

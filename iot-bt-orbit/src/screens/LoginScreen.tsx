@@ -10,9 +10,10 @@ import {
   Platform,
   Alert,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../constants/colors';
+import { loginUser, signUpUser } from '../services/firebaseService';
 
 const { width } = Dimensions.get('window');
 
@@ -20,47 +21,69 @@ interface LoginScreenProps {
   navigation?: any;
   route?: {
     params: {
-      role: 'attendee' | 'host';
+      role: 'attendee' | 'host' | 'recruiter';
     };
   };
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
   const role = route?.params?.role || 'attendee';
-  const [email, setEmail] = useState(
-    role === 'attendee' ? 'FarahKamal@gmail.com' : 'host@orbit.com'
-  );
-  const [password, setPassword] = useState('1234');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
 
-  const handleLogin = async () => {
+  // Recruiter-specific fields
+  const [company, setCompany] = useState('');
+  const [recruitingFor, setRecruitingFor] = useState('');
+  const [lookingFor, setLookingFor] = useState('');
+
+  const handleAuth = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter email and password');
+      return;
+    }
+
+    if (isSignUp && !name) {
+      Alert.alert('Error', 'Please enter your name');
+      return;
+    }
+
     setLoading(true);
 
-    // Validate credentials
-    const validAttendee = email === 'FarahKamal@gmail.com' && password === '1234';
-    const validHost = email === 'host@orbit.com' && password === '1234';
-
-    if ((role === 'attendee' && validAttendee) || (role === 'host' && validHost)) {
-      try {
-        // Save user data
-        await AsyncStorage.setItem('userRole', role);
-        await AsyncStorage.setItem('userName', role === 'attendee' ? 'Farah' : 'Host');
-        await AsyncStorage.setItem('isLoggedIn', 'true');
-        await AsyncStorage.setItem('userEmail', email);
+    try {
+      if (isSignUp) {
+        // Sign up new user
+        const additionalInfo = role === 'recruiter' ? { company, recruitingFor, lookingFor } : undefined;
+        await signUpUser(email, password, name, role, additionalInfo);
+        Alert.alert('Success', 'Account created! Please log in.');
+        setIsSignUp(false);
+        setPassword('');
+      } else {
+        // Login existing user
+        const userProfile = await loginUser(email, password);
+        
+        // Verify role matches
+        if (userProfile.role !== role) {
+          Alert.alert('Error', `This account is registered as a ${userProfile.role}, not a ${role}`);
+          setLoading(false);
+          return;
+        }
 
         // Navigate based on role
         if (role === 'attendee') {
-          navigation?.replace('LoadingSplash');
+          navigation?.replace('OrbitVisualization');
+        } else if (role === 'recruiter') {
+          navigation?.replace('RecruiterDashboard');
         } else {
           navigation?.replace('HostDashboard');
         }
-      } catch (error) {
-        Alert.alert('Error', 'Failed to save login data');
-        setLoading(false);
       }
-    } else {
-      Alert.alert('Invalid Credentials', 'Please check your email and password');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Authentication failed');
+    } finally {
       setLoading(false);
     }
   };
@@ -82,14 +105,25 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) =
 
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Welcome Back</Text>
+          <Text style={styles.title}>{isSignUp ? 'Create Account' : 'Welcome Back'}</Text>
           <Text style={styles.roleText}>
-            Log in as {role === 'attendee' ? 'Attendee' : 'Host'}
+            {isSignUp ? 'Sign up' : 'Log in'} as {role === 'attendee' ? 'Attendee' : role === 'recruiter' ? 'Recruiter' : 'Host'}
           </Text>
         </View>
 
         {/* Inputs */}
         <View style={styles.inputContainer}>
+          {isSignUp && (
+            <TextInput
+              style={styles.input}
+              placeholder="Full Name"
+              placeholderTextColor="rgba(255,255,255,0.5)"
+              value={name}
+              onChangeText={setName}
+              autoCapitalize="words"
+            />
+          )}
+
           <TextInput
             style={styles.input}
             placeholder="Email"
@@ -118,17 +152,58 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) =
               <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
             </TouchableOpacity>
           </View>
+
+          {isSignUp && role === 'recruiter' && (
+            <>
+              <TextInput
+                style={styles.input}
+                placeholder="Company Name"
+                placeholderTextColor="rgba(255,255,255,0.5)"
+                value={company}
+                onChangeText={setCompany}
+                autoCapitalize="words"
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Recruiting For (e.g., Software Engineering)"
+                placeholderTextColor="rgba(255,255,255,0.5)"
+                value={recruitingFor}
+                onChangeText={setRecruitingFor}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Looking For (e.g., Entry level, 2+ years)"
+                placeholderTextColor="rgba(255,255,255,0.5)"
+                value={lookingFor}
+                onChangeText={setLookingFor}
+              />
+            </>
+          )}
         </View>
 
-        {/* Login Button */}
+        {/* Login/Sign Up Button */}
         <TouchableOpacity
           style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-          onPress={handleLogin}
+          onPress={handleAuth}
           disabled={loading}
           activeOpacity={0.8}
         >
-          <Text style={styles.loginButtonText}>
-            {loading ? 'Logging in...' : 'Log In'}
+          {loading ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <Text style={styles.loginButtonText}>
+              {isSignUp ? 'Sign Up' : 'Log In'}
+            </Text>
+          )}
+        </TouchableOpacity>
+
+        {/* Toggle Sign Up/Log In */}
+        <TouchableOpacity
+          style={styles.toggleButton}
+          onPress={() => setIsSignUp(!isSignUp)}
+        >
+          <Text style={styles.toggleText}>
+            {isSignUp ? 'Already have an account? Log In' : "Don't have an account? Sign Up"}
           </Text>
         </TouchableOpacity>
       </KeyboardAvoidingView>
@@ -230,5 +305,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: colors.white,
+  },
+  toggleButton: {
+    marginTop: 24,
+    alignSelf: 'center',
+  },
+  toggleText: {
+    fontSize: 14,
+    color: colors.cyan,
+    textDecorationLine: 'underline',
   },
 });

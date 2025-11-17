@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,8 +7,9 @@ import {
   Dimensions,
   TouchableOpacity,
 } from 'react-native';
-import { useSharedValue, withRepeat, withTiming, Easing } from 'react-native-reanimated';
+import { Video, ResizeMode } from 'expo-av';
 import { BottomNav } from '../components/BottomNav';
+import { getCurrentUser, getUserProfile } from '../services/firebaseService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -19,35 +20,27 @@ interface OrbitVisualizationScreenProps {
 }
 
 export const OrbitVisualizationScreen: React.FC<OrbitVisualizationScreenProps> = ({
-  userName = 'Farah',
+  userName: userNameProp,
   onComplete,
   navigation,
 }) => {
-  const rotation = useSharedValue(0);
-  const pulse = useSharedValue(1);
+  const [userName, setUserName] = useState(userNameProp || 'User');
+  const videoRef = useRef<Video>(null);
 
   useEffect(() => {
-    // Continuous rotation
-    rotation.value = withRepeat(
-      withTiming(360, {
-        duration: 8000,
-        easing: Easing.linear,
-      }),
-      -1,
-      false
-    );
+    // Load user name from Firebase
+    const loadUserName = async () => {
+      const user = getCurrentUser();
+      if (user) {
+        const profile = await getUserProfile(user.uid);
+        if (profile) {
+          setUserName(profile.name);
+        }
+      }
+    };
+    loadUserName();
 
-    // Pulse effect
-    pulse.value = withRepeat(
-      withTiming(1.02, {
-        duration: 3000,
-        easing: Easing.inOut(Easing.ease),
-      }),
-      -1,
-      true
-    );
-
-    // Auto-transition after 2-3 seconds when orbit detected
+    // Auto-transition after 3 seconds
     const timer = setTimeout(() => {
       onComplete?.();
     }, 3000);
@@ -55,9 +48,18 @@ export const OrbitVisualizationScreen: React.FC<OrbitVisualizationScreenProps> =
     return () => clearTimeout(timer);
   }, []);
 
+  // Handle tap to skip
+  const handleSkip = () => {
+    onComplete?.();
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <TouchableOpacity 
+        style={styles.content} 
+        activeOpacity={1}
+        onPress={handleSkip}
+      >
         {/* Status Dot Indicator */}
         <View style={styles.statusIndicator}>
           <View style={styles.statusDot} />
@@ -71,30 +73,26 @@ export const OrbitVisualizationScreen: React.FC<OrbitVisualizationScreenProps> =
         {/* Welcome Message */}
         <View style={styles.welcomeSection}>
           <Text style={styles.welcomeText}>
-            Your connections are aligning — welcome to Orbit, {userName}.
+            Your orbits are aligning, {userName}.
           </Text>
         </View>
 
-        {/* Central Animated Orb */}
-        <View style={styles.orbContainer}>
-          {/* Background glow */}
-          <View style={styles.glowContainer}>
-            <View style={styles.orbGlow} />
-          </View>
-          
-          {/* Main orb - make it tappable to skip */}
-          <TouchableOpacity 
-            style={styles.orb}
-            onPress={onComplete}
-            activeOpacity={0.9}
-          >
-            <View style={styles.orbCore} />
-          </TouchableOpacity>
+        {/* Video Player */}
+        <View style={styles.videoContainer}>
+          <Video
+            ref={videoRef}
+            source={require('../../assets/orbit-animation.mp4')}
+            style={styles.video}
+            resizeMode={ResizeMode.CONTAIN}
+            shouldPlay
+            isLooping
+            isMuted
+          />
           
           {/* Tap hint */}
-          <Text style={styles.tapHint}>Tap to continue</Text>
+          <Text style={styles.tapHint}>Tap anywhere to continue</Text>
         </View>
-      </View>
+      </TouchableOpacity>
 
       {/* Bottom Navigation - 2 icons only */}
       <BottomNav 
@@ -148,43 +146,15 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'left',
   },
-  orbContainer: {
+  videoContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
   },
-  glowContainer: {
-    position: 'absolute',
-    width: 300,
-    height: 280,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  orbGlow: {
-    width: 300,
-    height: 280,
-    borderRadius: 150,
-    backgroundColor: '#0D3A3A',
-    opacity: 0.6,
-  },
-  orb: {
-    width: 250,
-    height: 250,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  orbCore: {
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    backgroundColor: 'rgba(77, 196, 196, 0.3)',
-    borderWidth: 3,
-    borderColor: 'rgba(93, 229, 229, 0.4)',
-    shadowColor: '#4DC4C4',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
+  video: {
+    width: 400,
+    height: 400,
   },
   tapHint: {
     marginTop: 40,

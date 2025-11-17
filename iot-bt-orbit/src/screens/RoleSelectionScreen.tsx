@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../constants/colors';
@@ -19,7 +20,11 @@ interface RoleSelectionScreenProps {
 export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Logo */}
         <View style={styles.logoContainer}>
           <Text style={styles.logo}>ORBIT</Text>
@@ -42,9 +47,25 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ naviga
           </LinearGradient>
         </TouchableOpacity>
 
+        {/* Recruiter Card */}
+        <TouchableOpacity
+          style={[styles.cardContainer, styles.recruiterCardContainer]}
+          activeOpacity={0.9}
+          onPress={() => navigation?.navigate('Login', { role: 'recruiter' })}
+        >
+          <LinearGradient
+            colors={['#2A3544', '#1A2332']}
+            style={[styles.card, styles.recruiterCard]}
+          >
+            <Text style={styles.cardIcon}>💼</Text>
+            <Text style={styles.cardTitle}>Recruiter</Text>
+            <Text style={styles.cardDescription}>Connect with top talent at events</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+
         {/* Host Card */}
         <TouchableOpacity
-          style={styles.cardContainer}
+          style={[styles.cardContainer, styles.hostCardContainer]}
           activeOpacity={0.9}
           onPress={() => navigation?.navigate('Login', { role: 'host' })}
         >
@@ -57,7 +78,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ naviga
             <Text style={styles.cardDescription}>Manage your events and attendees</Text>
           </LinearGradient>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -67,12 +88,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.black,
   },
-  content: {
+  scrollView: {
     flex: 1,
+  },
+  content: {
     alignItems: 'center',
+    paddingBottom: 40,
   },
   logoContainer: {
-    marginTop: '25%',
+    marginTop: '15%',
+    marginBottom: 32,
     alignItems: 'center',
   },
   logo: {
@@ -89,11 +114,20 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   cardContainer: {
-    marginTop: 100,
+    marginTop: 0,
+    marginBottom: 20,
+  },
+  recruiterCardContainer: {
+    marginTop: 0,
+    marginBottom: 20,
+  },
+  hostCardContainer: {
+    marginTop: 0,
+    marginBottom: 20,
   },
   card: {
     width: width - 80,
-    height: 180,
+    height: 160,
     borderRadius: 20,
     padding: 24,
     justifyContent: 'center',
@@ -103,6 +137,15 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.cyan,
     shadowColor: colors.cyan,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  recruiterCard: {
+    borderWidth: 2,
+    borderColor: '#FFD700',
+    shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 24,

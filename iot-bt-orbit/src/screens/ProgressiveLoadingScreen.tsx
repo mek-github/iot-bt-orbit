@@ -1,12 +1,16 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
+  Animated,
   Dimensions,
+  SafeAreaView,
+  Easing,
 } from 'react-native';
-import { Colors, Typography, Spacing } from '../theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Colors, Spacing, Typography } from '../theme';
+import { getCurrentUser, getUserProfile } from '../services/firebaseService';
 import { BottomNav } from '../components/BottomNav';
 import { SkeletonCard } from '../components/SkeletonCard';
 
@@ -20,9 +24,25 @@ interface ProgressiveLoadingScreenProps {
 
 export const ProgressiveLoadingScreen: React.FC<ProgressiveLoadingScreenProps> = ({
   stage,
-  userName = 'Farah',
+  userName: userNameProp,
   onLoadComplete,
 }) => {
+  const [userName, setUserName] = useState(userNameProp || 'User');
+
+  useEffect(() => {
+    // Load user name from Firebase
+    const loadUserName = async () => {
+      const user = getCurrentUser();
+      if (user) {
+        const profile = await getUserProfile(user.uid);
+        if (profile) {
+          setUserName(profile.name);
+        }
+      }
+    };
+    loadUserName();
+  }, []);
+
   const renderContent = () => {
     const cardWidth = width - Spacing.screenPadding * 2;
 
